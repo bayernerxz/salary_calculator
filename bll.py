@@ -9,6 +9,7 @@ class Calculator:
     """
     # 考勤数据文件的存放位置
     __ATTENDANCE_FILE = "./原始文件/考勤数据.xls"
+
     # 需要特殊处理的日期项目
     __SPECIAL_ITEM = "请输入特殊情况，如果有多项比如1，2项都有，请输入1 2："
     __SPECIAL_ITEM += "\n1、公休"
@@ -18,6 +19,7 @@ class Calculator:
     __SPECIAL_ITEM += "\n5、婚假"
     __SPECIAL_ITEM += "\n6、产假"
     __SPECIAL_ITEM += "\n7、丧假"
+
     # 特殊日期项目输入提示
     __SPECIAL_ITEM_TIP_1 = "本月是否有特殊日期？是请输入Y或y，没有请输入N或n。"
     __SPECIAL_ITEM_TIP_2 = "请输入特殊日期（比如2月1日就输入1）。如果已经输入完成，请直接按回车键："
@@ -62,7 +64,7 @@ class ReadAttendance:
     """
     读取考勤数据
     """
-    # 日志文件的存储位置
+    # 日志文件的存储位置，用于记录处理出勤列表时出现的错误
     __LOG = "./log.txt"
 
     def __init__(self):
@@ -76,28 +78,30 @@ class ReadAttendance:
         :param sheet:考勤工作表对象
         :return: 员工对象
         """
-        # 按每个员工，分别读取，并将读读取的考勤数据传递给具体的员工对象实例。将每个员工对象返回到Calculator().stuff_list中
+        # 按每个员工，分别读取，并将读读取的考勤数据传递给具体的员工对象实例。
+        # 将每个员工对象返回到stuff_list中，将考勤数据返回到attendance_list中。
         i = 3
-        stuff_list_ = []
+        stuff_list = []
+        attendance_list = []
         while i <= sheet.nrows:
-            i = self.__add_stuff(i, sheet, stuff_list_, date_list_)
+            i = self.__add_stuff_attendance(i, sheet, stuff_list, attendance_list, date_list_)
         self.f.close()
-        return stuff_list_
+        return stuff_list, attendance_list
 
-    def __add_stuff(self, i, sheet, stuff_list_, date_list_):
+    def __add_stuff_attendance(self, i, sheet, stuff_list_, attendance_list_, date_list_):
         # 从A4单元格开始，每两个是一个员工的考勤数据
         name = sheet.cell_value(i, 0)
         depart = sheet.cell_value(i, 1)
         job = sheet.cell_value(i, 2)
-        attendance = self.__get_attendance(i, sheet, date_list_)
-        stuff_list_.append(Stuff(name, depart, job, attendance))
+        attendance_list_.append(Attendance(name, self.__get_attendance(i, sheet, date_list_)))
+        stuff_list_.append(Stuff(name, depart, job))
         i += 2
         return i
 
     def __get_attendance(self, i, sheet, date_list_):
         attendance_time_dict = {}
         for day in range(len(date_list_)):
-            # D5单元格取的休怎么处理还没有想好
+            # D5单元格取的具体怎么处理还没有想好，例如休怎么处理，出差怎么处理
             value = sheet.cell_value(i, 3 + day)
             if value:
                 try:
@@ -105,13 +109,13 @@ class ReadAttendance:
                     end_time = datetime.strptime(value.split("\n")[1].strip(), "%H:%M")
                 except Exception as e:
                     self.f.write(f"第%d行，%d号，考勤记录出错，请在考勤表中修改。\n" % (i + 1, day + 1))
+                    print(e)
                     continue
             else:
                 start_time = datetime.strptime("00:00", "%H:%M")
                 end_time = datetime.strptime("00:00", "%H:%M")
             attendance_time_dict[day + 1] = (start_time, end_time)
-        attendance = PersonAttendance(attendance_time_dict)
-        return attendance
+        return attendance_time_dict
 
 
 if __name__ == '__main__':
@@ -120,7 +124,15 @@ if __name__ == '__main__':
     # 工作簿的第二张（索引号1）工作表为考勤数据工作表
     sh = wb.sheet_by_index(1)
     date_list = Calculator().get_date_list(sh)
-    stuff_list = ReadAttendance().get_stuff_list(sh, date_list)
+
+    # 获取所有员工列表和考勤列表，两者的相关性用name属性连接
+    stuff_list, attendance_list = ReadAttendance().get_stuff_list(sh, date_list)
+
+    # 测试下是否能正确取到考勤数据
     for stuff in stuff_list:
-        for k, v in stuff.attendance.attendance_time_dict.items():
-            print(stuff.name, "%d号" % k, "上班：%s" % v[0].ctime()[11:16], "下班：%s" % v[1].ctime()[11:16])
+        for attendance in attendance_list:
+            if attendance.name == stuff.name:
+                for k, v in attendance.attendance_time_dict.items():
+                    print(stuff.name, "%d号" % k, "上班：%s" % v[0].ctime()[11:16],
+                          "下班：%s" % v[1].ctime()[11:16])
+                break

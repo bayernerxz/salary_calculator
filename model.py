@@ -4,84 +4,69 @@ model.py 数据模型模块
 包含员工类、迟到类、迟到计算器类、早退类、早退计算器类、旷工类、请假类。
 
 迟到类和早退类的规定上下班时间，分别在迟到计算器类和早退计算器类中定义
+
+========================================
+
+要降低类之间的耦合度，两个类之间最好不要用继承的关系，而使用实际对象的属性来进行初始化。更好的办法是在方法中把另一个类作为此方法的参数传参即可
+
+例如
+员工类和考勤类
+
+考勤类的属性可以用员工类的实例对象，初始化类时可以用这个实例对象本身self进行传参。
+
+更好的办法是属性只定义为员工实际对象的一个属性比如name，而在需要获取这个实例变量的其他属性是，
+
+可在方法外定义一个容器存储所有员工对象，再便利这些对象，找到符合的这个对象再进行读取，这样可以进一步降低耦合度。
 """
 
 from datetime import *
 
 
 class Stuff:
-    def __init__(self, name, depart, job, attendance):
+    def __init__(self, name, depart, job, base_salary=4300):
         self.name = name
         self.depart = depart
         self.job = job
-        self.attendance = attendance
-
-    def get_salary(self):
-        print("获取工资对象")
+        self.base_salary = base_salary
 
 
-class PersonAttendance:
-    def __init__(self, attendance_time_dict):
+class Attendance:
+    def __init__(self, name, attendance_time_dict):
+        self.name = name  # 初始化对象时，将stuff实例对象的.name属性进行传递
         self.attendance_time_dict = attendance_time_dict
         """
         出勤时间字典格式如下，其中时间影视datetime中的时间对象
-        {1:[(8:58,18:02)];
+        {
+        1:[(8:58,18:02)];
         2:[(8:58,18:02)];
         ...
         28:[(8:58,18:02)]
+        }
         """
-
-    def get_regular_attendance_days(self):
-        print("获取应出勤多少天")
-
-    def get_real_attendance_days(self):
-        print("获取实际出勤多少天")
-
-    def get_late(self):
-        print("获取迟到对象")
-
-    def get_early_leave(self):
-        print("获取早退对象")
-
-    def get_absent(self):
-        print("获取矿工对象")
-
-    def get_leave(self):
-        print("获取请假对象")
-
-    def get_travel(self):
-        print("获取出差对象")
 
 
 class Late:
     """
     具体员工的迟到事件的对象
-    计算规则：
-        1.员工出勤晚于上班时间的为迟到
-        2.每月2次迟到机会10分钟之内，不扣钱。
-        3.当月第三次迟到起，每迟到一分钟，罚款10元,扣前2次迟到补交20元,扣除全勤奖。
-        4.迟到在30分钟以上的，罚款50元/次。
-        5.每个月有3次迟到30分钟以上的，自动离职。
-
-    疑问：
-        前两次迟到30分钟以上，第三次迟到10分钟以内，这次算不算迟到？我的理解是算。
-        再一个早退那一栏里写的迟到30分钟时罚款50，可是之前写的时每分钟10块，这样30分钟就时300块了。怎么处理。
-        一个月只迟到了一次 但是不到30分钟 这种怎么处理
+    计算规则：只计算不到10分钟内的迟到数据，超出部分，需要提供额外的一个扣款文件。
+        第一次和第二次不扣钱，第三次扣30，后面每次扣10块
     """
 
-    def __init__(self, stuff):
-        self.stuff = stuff
+    # 正点上班时间
+    __regular_start_time = datetime.strptime("09:00", "%H:%M")
+
+    def __init__(self, name):
+        self.stuff = name
         self.count = 0
         self.loss = 0
 
-    def handle_late_by_day(self, start_time):
+    def get_late(self, start_time):
         """
         计算迟到时间，再对象属性中直接修改
         :param start_time:上班到岗时间，用datetime.datetime.strptime()生成
         """
         # 判断迟到并计算迟到时间
         late_time = LateCalculator().calculate_late_time(start_time)
-        # 1 没有迟到
         if late_time == 0:
             pass
         # 2 迟到时间大于30分钟，罚款50元/次
